@@ -81,6 +81,7 @@ type VersionedDB interface {
 	Open() error
 	// Close closes the db
 	Close()
+	UpdateCache(blockNum uint64, updates interface{}) error
 }
 
 // NamespaceProvider provides a mean for statedb to get all the possible namespaces for a channel.

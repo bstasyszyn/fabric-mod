@@ -732,6 +732,7 @@ func (dbclient *CouchDatabase) ReadDoc(id string) (*CouchDoc, string, error) {
 	dbName := dbclient.DBName
 
 	couchdbLogger.Debugf("[%s] Entering ReadDoc()  ID=[%s]", dbName, id)
+
 	if !utf8.ValidString(id) {
 		return nil, "", errors.Errorf("doc ID [%x] not a valid utf8 string", id)
 	}
