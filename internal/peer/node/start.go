@@ -764,6 +764,12 @@ func serve(args []string) error {
 		SkipCheckForDupTxnID:   skipCheckForDupTxnID,
 	}
 
+	// Expose endorsement analyzer for distributed validation
+	channelVerifier := discacl.NewChannelVerifier(policies.ChannelApplicationWriters, policyMgr)
+	localAccessPolicy := localPolicy(policydsl.SignedByAnyAdmin([]string{mspID}))
+	acl := discacl.NewDiscoverySupport(channelVerifier, localAccessPolicy, discacl.ChannelConfigGetterFunc(peerInstance.GetStableChannelConfig))
+	ea := endorsement.NewEndorsementAnalyzer(gossip.NewDiscoverySupport(gossipService), nil, acl, nil)
+
 	// Initialize all of the registered resources
 	err = resource.Initialize(
 		newGossipProvider(peerInstance.GossipService),
@@ -776,6 +782,7 @@ func serve(args []string) error {
 		endorserSupport,
 		lifecycleValidatorCommitter,
 		lifecycleCache,
+		ea,
 	)
 	if err != nil {
 		panic(err)

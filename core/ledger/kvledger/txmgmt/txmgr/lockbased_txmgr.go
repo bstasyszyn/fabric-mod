@@ -27,6 +27,8 @@ import (
 	"github.com/hyperledger/fabric/core/ledger/pvtdatapolicy"
 	"github.com/hyperledger/fabric/core/ledger/util"
 	storeapi "github.com/hyperledger/fabric/extensions/collections/api/store"
+	extvalidation "github.com/hyperledger/fabric/extensions/validation"
+	extvalidationapi "github.com/hyperledger/fabric/extensions/validation/api"
 	"github.com/pkg/errors"
 )
 
@@ -38,7 +40,7 @@ type LockBasedTxMgr struct {
 	ledgerid            string
 	db                  *privacyenabledstate.DB
 	pvtdataPurgeMgr     *pvtdataPurgeMgr
-	commitBatchPreparer *validation.CommitBatchPreparer
+	commitBatchPreparer extvalidationapi.CommitBatchPreparer
 	stateListeners      []ledger.StateListener
 	ccInfoProvider      ledger.DeployedChaincodeInfoProvider
 	commitRWLock        sync.RWMutex
@@ -131,7 +133,7 @@ func NewLockBasedTxMgr(initializer *Initializer) (*LockBasedTxMgr, error) {
 		return nil, err
 	}
 	txmgr.pvtdataPurgeMgr = &pvtdataPurgeMgr{pvtstatePurgeMgr, false}
-	txmgr.commitBatchPreparer = validation.NewCommitBatchPreparer(
+	txmgr.commitBatchPreparer = extvalidation.NewCommitBatchPreparer(
 		txmgr,
 		initializer.DB,
 		initializer.CustomTxProcessors,

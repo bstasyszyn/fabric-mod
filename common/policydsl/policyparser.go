@@ -24,6 +24,7 @@ const (
 	GateAnd   = "And"
 	GateOr    = "Or"
 	GateOutOf = "OutOf"
+	GateMax   = "Max"
 )
 
 // Role values for principals
@@ -78,6 +79,41 @@ func outof(args ...interface{}) (interface{}, error) {
 			return nil, fmt.Errorf("unexpected type %s", reflect.TypeOf(arg))
 		}
 	}
+	return toret + ")", nil
+}
+
+// a stub function - it returns the same string as it's passed.
+// This will be evaluated by second/third passes to convert to a proto policy
+func max(args ...interface{}) (interface{}, error) {
+	toret := "max("
+	if len(args) != 2 {
+		return nil, fmt.Errorf("Expected two arguments to MAX. Given %d", len(args))
+	}
+
+	arg0 := args[0]
+	// govaluate treats all numbers as float64 only. But and/or may pass int/string. Allowing int/string for flexibility of caller
+	if n, ok := arg0.(float64); ok {
+		toret += strconv.Itoa(int(n))
+	} else if n, ok := arg0.(int); ok {
+		toret += strconv.Itoa(n)
+	} else if n, ok := arg0.(string); ok {
+		toret += n
+	} else {
+		return nil, fmt.Errorf("Unexpected type %s", reflect.TypeOf(arg0))
+	}
+
+	arg := args[1]
+	toret += ", "
+	switch t := arg.(type) {
+	case string:
+		if regex.MatchString(t) {
+			toret += "'" + t + "'"
+		} else {
+			toret += t
+		}
+	default:
+		return nil, fmt.Errorf("Unexpected type %s", reflect.TypeOf(arg))
+	}
 
 	return toret + ")", nil
 }
@@ -109,6 +145,28 @@ func firstPass(args ...interface{}) (interface{}, error) {
 			toret += strconv.Itoa(int(t))
 		default:
 			return nil, fmt.Errorf("unexpected type %s", reflect.TypeOf(arg))
+		}
+	}
+
+	return toret + ")", nil
+}
+
+func firstPassMax(args ...interface{}) (interface{}, error) {
+	toret := "max(ID"
+	for _, arg := range args {
+		toret += ", "
+		switch t := arg.(type) {
+		case string:
+			if regex.MatchString(t) {
+				toret += "'" + t + "'"
+			} else {
+				toret += t
+			}
+		case float32:
+		case float64:
+			toret += strconv.Itoa(int(t))
+		default:
+			return nil, fmt.Errorf("Unexpected type %s", reflect.TypeOf(arg))
 		}
 	}
 
@@ -217,9 +275,40 @@ func secondPass(args ...interface{}) (interface{}, error) {
 	return NOutOf(int32(t), policies), nil
 }
 
+func secondPassMax(args ...interface{}) (interface{}, error) {
+	if len(args) < 3 {
+		return nil, fmt.Errorf("At least 3 arguments expected, got %d", len(args))
+	}
+
+	/* get the first argument, we expect it to be the context */
+	var ctx *context
+	switch v := args[0].(type) {
+	case *context:
+		ctx = v
+	default:
+		return nil, fmt.Errorf("Unrecognized type, expected the context, got %s", reflect.TypeOf(args[0]))
+	}
+
+	switch arg := args[1].(type) {
+	case float64:
+		ctx.maxValidationGroups = int32(arg)
+	default:
+		return nil, fmt.Errorf("Unrecognized type, expected a number, got %s", reflect.TypeOf(args[1]))
+	}
+
+	principal := args[2]
+	switch policy := principal.(type) {
+	case *cb.SignaturePolicy:
+		return policy, nil
+	default:
+		return nil, fmt.Errorf("Unrecognized type, expected a principal or a policy, got %s", reflect.TypeOf(principal))
+	}
+}
+
 type context struct {
-	IDNum      int
-	principals []*mb.MSPPrincipal
+	IDNum               int
+	principals          []*mb.MSPPrincipal
+	maxValidationGroups int32
 }
 
 func newContext() *context {
@@ -257,6 +346,9 @@ func FromString(policy string) (*cb.SignaturePolicyEnvelope, error) {
 			GateOutOf:                  outof,
 			strings.ToLower(GateOutOf): outof,
 			strings.ToUpper(GateOutOf): outof,
+			GateMax:                    max,
+			strings.ToLower(GateMax):   max,
+			strings.ToUpper(GateMax):   max,
 		},
 	)
 	if err != nil {
@@ -289,7 +381,7 @@ func FromString(policy string) (*cb.SignaturePolicyEnvelope, error) {
 	// we put the identities that the policy requires
 	exp, err := govaluate.NewEvaluableExpressionWithFunctions(
 		resStr,
-		map[string]govaluate.ExpressionFunction{"outof": firstPass},
+		map[string]govaluate.ExpressionFunction{"outof": firstPass, "max": firstPassMax},
 	)
 	if err != nil {
 		return nil, err
@@ -319,7 +411,7 @@ func FromString(policy string) (*cb.SignaturePolicyEnvelope, error) {
 
 	exp, err = govaluate.NewEvaluableExpressionWithFunctions(
 		resStr,
-		map[string]govaluate.ExpressionFunction{"outof": secondPass},
+		map[string]govaluate.ExpressionFunction{"outof": secondPass, "max": secondPassMax},
 	)
 	if err != nil {
 		return nil, err
@@ -344,9 +436,10 @@ func FromString(policy string) (*cb.SignaturePolicyEnvelope, error) {
 	}
 
 	p := &cb.SignaturePolicyEnvelope{
-		Identities: ctx.principals,
-		Version:    0,
-		Rule:       rule,
+		Identities:          ctx.principals,
+		Version:             0,
+		Rule:                rule,
+		MaxValidationGroups: ctx.maxValidationGroups,
 	}
 
 	return p, nil

@@ -8,6 +8,7 @@ package pvtdatastorage
 
 import (
 	"fmt"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -153,8 +154,9 @@ func (p *Provider) OpenStore(ledgerid string) (xstorageapi.PrivateDataStore, err
 		return nil, err
 	}
 	s.launchCollElgProc()
-	logger.Debugf("Pvtdata store opened. Initial state: isEmpty [%t], lastCommittedBlock [%d]",
+	logger.Errorf("Pvtdata store opened. Initial state: isEmpty [%t], lastCommittedBlock [%d]",
 		s.isEmpty, s.lastCommittedBlock)
+	debug.PrintStack()
 	return s, nil
 }
 
@@ -351,6 +353,8 @@ func (s *Store) GetPvtDataByBlockNum(blockNum uint64, filter ledger.PvtNsCollFil
 	}
 	lastCommittedBlock := atomic.LoadUint64(&s.lastCommittedBlock)
 	if blockNum > lastCommittedBlock {
+		logger.Errorf("Last committed block=%d, block requested=%d", lastCommittedBlock, blockNum)
+		debug.PrintStack()
 		return nil, &ErrOutOfRange{fmt.Sprintf("Last committed block=%d, block requested=%d", lastCommittedBlock, blockNum)}
 	}
 	startKey, endKey := getDataKeysForRangeScanByBlockNum(blockNum)

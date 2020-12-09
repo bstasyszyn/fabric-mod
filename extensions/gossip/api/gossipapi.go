@@ -8,6 +8,7 @@ package api
 
 import (
 	cb "github.com/hyperledger/fabric-protos-go/common"
+	db "github.com/hyperledger/fabric-protos-go/discovery"
 	"github.com/hyperledger/fabric-protos-go/ledger/rwset/kvrwset"
 	pb "github.com/hyperledger/fabric-protos-go/peer"
 	"github.com/hyperledger/fabric/core/common/ccprovider"
@@ -81,4 +82,9 @@ type Support struct {
 // GossipService contains Gossip function
 type GossipService interface {
 	// It's up to extensions which functions are exposed
+}
+
+type PeerPolicyDescriptor struct {
+	PeersByGroups map[string]*db.Peers
+	Layouts       []*db.Layout
 }
