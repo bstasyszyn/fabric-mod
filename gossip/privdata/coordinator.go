@@ -174,6 +174,7 @@ func (c *coordinator) StoreBlock(block *common.Block, privateDataSets util.PvtDa
 
 	validationStart := time.Now()
 	err := c.Validator.Validate(block)
+	logger.Infof("[%s] First phase validation of block [%d] took %s", c.ChainID, block.Header.Number, time.Since(validationStart))
 	c.reportValidationDuration(time.Since(validationStart))
 	if err != nil {
 		logger.Errorf("Validation failed: %+v", err)
@@ -243,6 +244,8 @@ func (c *coordinator) StoreBlock(block *common.Block, privateDataSets util.PvtDa
 
 	// Purge transactions
 	go retrievedPvtdata.Purge()
+
+	logger.Infof("[%s] StoreBlock of block [%d] took %s", c.ChainID, block.Header.Number, time.Since(validationStart))
 
 	return blockAndPvtData, nil
 }
